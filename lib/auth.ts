@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { loginSchema } from "@/lib/validations";
 
 import {
     isBlocked,
@@ -66,6 +67,15 @@ export const authOptions: NextAuthOptions = {
                             email: credentials.email,
                         },
                     });
+            async authorize(credentials) {
+                const parsed = loginSchema.safeParse(credentials);
+                if (!parsed.success) {
+                    throw new Error(parsed.error.errors[0].message);
+                }
+
+                const user = await prisma.user.findUnique({
+                    where: { email: parsed.data.email }
+                });
 
                 if (!user || !user.password) {
                     recordFailedAttempt(rateLimitKey);
@@ -78,6 +88,7 @@ export const authOptions: NextAuthOptions = {
                         credentials.password,
                         user.password
                     );
+                const isPasswordValid = await bcrypt.compare(parsed.data.password, user.password);
 
                 if (!isPasswordValid) {
                     recordFailedAttempt(rateLimitKey);
