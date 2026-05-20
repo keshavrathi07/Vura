@@ -16,6 +16,7 @@ import {
 export async function POST(req: Request) {
     try {
         const body = await req.json();
+
         const rateLimitKey = getRateLimitKey(
             "reset-password",
             typeof body?.token === "string"
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
                 : "anonymous",
             req.headers
         );
+
         const blockStatus = isBlocked(rateLimitKey);
 
         if (blockStatus.blocked) {
@@ -39,23 +41,33 @@ export async function POST(req: Request) {
             );
         }
 
-
         try {
-            var { token, password } = validateResetPassword(body) as {
-                token: string;
-                password: string;
-            };
+            validateResetPassword(body);
         } catch (err) {
             if (err instanceof ZodError) {
-                return NextResponse.json({ message: "Invalid input", errors: err.errors }, { status: 400 });
+                return NextResponse.json(
+                    {
+                        message: "Invalid input",
+                       errors: err.issues,
+                    },
+                    { status: 400 }
+                );
             }
+
             throw err;
+        }
+
         const parsed = resetPasswordSchema.safeParse(body);
 
         if (!parsed.success) {
             recordFailedAttempt(rateLimitKey);
+
             const error = parsed.error.issues[0].message;
-            return NextResponse.json({ error }, { status: 400 });
+
+            return NextResponse.json(
+                { error },
+                { status: 400 }
+            );
         }
 
         const { token, password } = parsed.data;
@@ -64,23 +76,28 @@ export async function POST(req: Request) {
             where: {
                 resetPasswordToken: token,
                 resetPasswordExpires: {
-                    gt: new Date(), // Extracted token must still be valid
+                    gt: new Date(),
                 },
             },
         });
 
         if (!user) {
             recordFailedAttempt(rateLimitKey);
+
             return NextResponse.json(
-                { message: "Invalid or expired password reset token" },
+                {
+                    message:
+                        "Invalid or expired password reset token",
+                },
                 { status: 400 }
             );
         }
 
-        // Hash the new password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(
+            password,
+            10
+        );
 
-        // Update user
         await prisma.user.update({
             where: { id: user.id },
             data: {
@@ -89,6 +106,7 @@ export async function POST(req: Request) {
                 resetPasswordExpires: null,
             },
         });
+
         clearFailedAttempts(rateLimitKey);
 
         return NextResponse.json(
@@ -97,6 +115,10 @@ export async function POST(req: Request) {
         );
     } catch (error) {
         console.error("Reset password error:", error);
-        return NextResponse.json({ message: "Something went wrong" }, { status: 500 });
+
+        return NextResponse.json(
+            { message: "Something went wrong" },
+            { status: 500 }
+        );
     }
 }

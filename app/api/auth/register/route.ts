@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
     try {
         const body = await req.json();
+
         const rateLimitKey = getRateLimitKey(
             "register",
             typeof body?.email === "string"
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
                 : "anonymous",
             req.headers
         );
+
         const blockStatus = isBlocked(rateLimitKey);
 
         if (blockStatus.blocked) {
@@ -41,24 +43,33 @@ export async function POST(req: Request) {
             );
         }
 
-
         try {
-            var { email, password, name } = validateRegister(body) as {
-                email: string;
-                password: string;
-                name?: string;
-            };
+            validateRegister(body);
         } catch (err) {
             if (err instanceof ZodError) {
-                return NextResponse.json({ message: "Invalid input", errors: err.errors }, { status: 400 });
+                return NextResponse.json(
+                    {
+                        message: "Invalid input",
+                        errors: err.issues,
+                    },
+                    { status: 400 }
+                );
             }
+
             throw err;
+        }
+
         const parsed = registerSchema.safeParse(body);
 
         if (!parsed.success) {
             recordFailedAttempt(rateLimitKey);
+
             const error = parsed.error.issues[0].message;
-            return NextResponse.json({ error }, { status: 400 });
+
+            return NextResponse.json(
+                { error },
+                { status: 400 }
+            );
         }
 
         const {
@@ -66,22 +77,30 @@ export async function POST(req: Request) {
             password,
             name,
         } = parsed.data;
+
         const email = rawEmail.toLowerCase();
 
-        // Check if user already exists
         const existingUser = await prisma.user.findUnique({
             where: { email },
         });
 
         if (existingUser) {
             recordFailedAttempt(rateLimitKey);
-            return NextResponse.json({ message: "User with this email already exists" }, { status: 409 });
+
+            return NextResponse.json(
+                {
+                    message:
+                        "User with this email already exists",
+                },
+                { status: 409 }
+            );
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(
+            password,
+            10
+        );
 
-        // Save user to database
         const newUser = await prisma.user.create({
             data: {
                 email,
@@ -90,16 +109,26 @@ export async function POST(req: Request) {
             },
         });
 
-        // Don't return the hashed password
-        const { password: _, ...userWithoutPassword } = newUser;
+        const {
+            password: _,
+            ...userWithoutPassword
+        } = newUser;
+
         clearFailedAttempts(rateLimitKey);
 
         return NextResponse.json(
-            { user: userWithoutPassword, message: "User created successfully" },
+            {
+                user: userWithoutPassword,
+                message: "User created successfully",
+            },
             { status: 201 }
         );
     } catch (error) {
         console.error("Registration error:", error);
-        return NextResponse.json({ message: "Something went wrong" }, { status: 500 });
+
+        return NextResponse.json(
+            { message: "Something went wrong" },
+            { status: 500 }
+        );
     }
 }
