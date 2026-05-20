@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { ZodError } from "zod";
+import { validateResetPassword } from "@/lib/validation/auth";
 import { resetPasswordSchema } from "@/lib/validations";
 import {
     AUTH_RATE_LIMIT_MESSAGE,
@@ -37,6 +39,17 @@ export async function POST(req: Request) {
             );
         }
 
+
+        try {
+            var { token, password } = validateResetPassword(body) as {
+                token: string;
+                password: string;
+            };
+        } catch (err) {
+            if (err instanceof ZodError) {
+                return NextResponse.json({ message: "Invalid input", errors: err.errors }, { status: 400 });
+            }
+            throw err;
         const parsed = resetPasswordSchema.safeParse(body);
 
         if (!parsed.success) {
