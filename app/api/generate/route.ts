@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
 
         const templateFile = formData.get("template") as File | null;
         const datasetFile = formData.get("dataset") as File | null;
+        const eventIdString = formData.get("eventId") as string | null;
 
         if (!templateFile || !datasetFile) {
             return NextResponse.json({ error: "Missing template or dataset file." }, { status: 400 });
@@ -49,14 +50,46 @@ export async function POST(req: NextRequest) {
 
         // Extract settings payload before parsing to know which columns are required
         const settingsString = formData.get("settings") as string | null;
-        let settings: any = null;
-        if (settingsString) {
-            try {
-                settings = JSON.parse(settingsString);
-            } catch {
-                return NextResponse.json({ error: "Invalid settings JSON. Please provide valid JSON in the settings field." }, { status: 400 });
+// Extract settings payload before parsing to know which columns are required
+const settingsString = formData.get("settings") as string | null;
+
+let settings: Record<string, any> | null = null;
+
+if (settingsString) {
+    try {
+        settings = JSON.parse(settingsString);
+    } catch {
+        return NextResponse.json(
+            {
+                error:
+                    "Invalid settings JSON. Please provide valid JSON in the settings field.",
+            },
+            { status: 400 }
+        );
+    }
+}
+
+const canvasWidth = 794;
+const canvasHeight = 562;
+
+const toPercentX = (x?: number) =>
+    typeof x === "number" ? (x / canvasWidth) * 100 : 50;
+
+const toPercentY = (y?: number) =>
+    typeof y === "number" ? (y / canvasHeight) * 100 : 50;
+
+// If eventId provided, try to load template from database
+if (eventIdString && session?.user) {
+    try {
+        const event = await prisma.event.findUnique({
+            where: { id: eventIdString },
+            select: { userId: true },
+        });
             }
         }
+       
+        
+
         const saveToDb = formData.get("saveToDb") !== "false";
         const batchId = generateBatchId();
 
