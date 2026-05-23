@@ -49,14 +49,31 @@ export async function POST(req: NextRequest) {
 
         // Extract settings payload before parsing to know which columns are required
         const settingsString = formData.get("settings") as string | null;
-        let settings: any = null;
+        let settings: Record<string, any> | null = null;
+
         if (settingsString) {
             try {
                 settings = JSON.parse(settingsString);
             } catch {
-                return NextResponse.json({ error: "Invalid settings JSON. Please provide valid JSON in the settings field." }, { status: 400 });
+                return NextResponse.json(
+                    {
+                        error:
+                            "Invalid settings JSON. Please provide valid JSON in the settings field.",
+                    },
+                    { status: 400 }
+                );
             }
         }
+
+        const canvasWidth = 794;
+        const canvasHeight = 562;
+
+        const toPercentX = (x?: number) =>
+            typeof x === "number" ? (x / canvasWidth) * 100 : 50;
+
+        const toPercentY = (y?: number) =>
+            typeof y === "number" ? (y / canvasHeight) * 100 : 50;
+
         const saveToDb = formData.get("saveToDb") !== "false";
         const batchId = generateBatchId();
 
