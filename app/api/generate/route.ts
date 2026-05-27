@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
             for (const key of fieldKeys) {
                 if (key in s && (typeof s[key] !== "object" || s[key] === null || Array.isArray(s[key]))) {
                     return NextResponse.json(
+                        { error: `Invalid settings: "${key}" must be an object.` },
                         { error: `Invalid settings: \"${key}\" must be an object.` },
                         { status: 400 }
                     );
@@ -118,6 +119,17 @@ export async function POST(req: NextRequest) {
         const normalizeKey = (key: string) => key.trim().toLowerCase();
         const datasetName = datasetFile.name.toLowerCase();
 
+        // 3. Find the valid sheet
+        let rows: Record<string, unknown>[] = [];
+
+        for (const sheetName of workbook.SheetNames) {
+            const sheet = workbook.Sheets[sheetName];
+            const sheetRows = xlsx.utils.sheet_to_json<Record<string, unknown>>(sheet);
+            if (sheetRows.length > 0) {
+                const normalizedKeys = Object.keys(sheetRows[0]).map(normalizeKey);
+                if (requiredCols.every(col => normalizedKeys.includes(col))) {
+                    rows = sheetRows;
+                    break;
         let rows: Record<string, unknown>[] = [];
 
         if (datasetName.endsWith(".csv")) {
